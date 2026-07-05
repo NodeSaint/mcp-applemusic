@@ -1,8 +1,8 @@
 """Library search and track metadata. All values via argv."""
 from .models import parse_tracks
-from .runner import run_script, US
+from .runner import run_script, US, SANITIZE_HANDLER
 
-_TRACK_EMIT = '''
+_TRACK_EMIT = SANITIZE_HANDLER + '''
 on emitTrack(t)
     tell application "Music"
         set us to character id 31
@@ -10,7 +10,7 @@ on emitTrack(t)
         try
             set d to ((duration of t) as integer) as text
         end try
-        return (persistent ID of t) & us & (name of t) & us & (artist of t) & us & (album of t) & us & d
+        return (persistent ID of t) & us & (my san(name of t)) & us & (my san(artist of t)) & us & (my san(album of t)) & us & d
     end tell
 end emitTrack
 '''
@@ -64,19 +64,19 @@ on run argv
 end run
 '''
 
-_INFO_SCRIPT = '''
+_INFO_SCRIPT = SANITIZE_HANDLER + '''
 on run argv
     set pid to item 1 of argv
     set us to character id 31
     tell application "Music"
         set t to first track of library playlist 1 whose persistent ID is pid
-        set fields to (persistent ID of t) & us & (name of t) & us & (artist of t) & us & (album of t)
+        set fields to (persistent ID of t) & us & (my san(name of t)) & us & (my san(artist of t)) & us & (my san(album of t))
         try
             set fields to fields & us & ((duration of t) as integer)
         on error
             set fields to fields & us
         end try
-        set fields to fields & us & (genre of t) & us & (year of t) & us & (played count of t) & us & (rating of t)
+        set fields to fields & us & (my san(genre of t)) & us & (year of t) & us & (played count of t) & us & (rating of t)
         try
             set fields to fields & us & (favorited of t) & us & (disliked of t)
         on error

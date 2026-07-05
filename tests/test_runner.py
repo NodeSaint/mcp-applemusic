@@ -16,7 +16,8 @@ def test_args_passed_as_argv_not_interpolated():
     with patch("mcp_applemusic.runner.subprocess.run", return_value=_completed(stdout="ok\n")) as run:
         run_script("on run argv\nreturn item 1 of argv\nend run", 'evil " quote', "two")
     cmd = run.call_args[0][0]
-    assert cmd[:2] == ["osascript", "-e"]
+    assert cmd[0] == "/usr/bin/osascript"  # pinned absolute path, no PATH lookup
+    assert cmd[1] == "-e"
     assert cmd[3] == "--"  # option terminator precedes all user args
     assert cmd[4:] == ['evil " quote', "two"]  # data, not source
     assert "evil" not in cmd[2]

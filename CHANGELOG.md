@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2 — 2026-07-05 — second security pass
+
+Thorough review of the whole package. Verified clean: single osascript gateway (no other subprocess/`eval`/`exec`), no network surface, no secrets, `--` terminator in place, all values via argv.
+
+Two findings fixed:
+
+- **Output field-injection via crafted metadata (low severity, defense-in-depth).** Track/playlist names are influenceable by whoever publishes a track; a name containing a raw US/RS delimiter control character could inject an extra field or a phantom record into the parsed output the model sees. Added a shared AppleScript `san()` handler that strips those control characters from every emitted free-text field (name, artist, album, genre, playlist name). Persistent IDs were already injection-proof (system-generated, always first).
+- **PATH-lookup surface.** `osascript` was invoked by bare name. Pinned to the absolute system path `/usr/bin/osascript`.
+
 ## Unreleased (branch: dev)
 
 - Rewrote `README.md` — proper hero, quick example, categorized tool tables, security and roadmap sections.

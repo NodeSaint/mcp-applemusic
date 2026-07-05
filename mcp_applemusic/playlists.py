@@ -1,6 +1,6 @@
 """User playlist CRUD. Playlists resolved by persistent ID, falling back to exact name."""
 from .models import parse_tracks, parse_playlists
-from .runner import run_script, US
+from .runner import run_script, US, SANITIZE_HANDLER
 
 _RESOLVE = '''
 on resolvePlaylist(q)
@@ -14,7 +14,7 @@ on resolvePlaylist(q)
 end resolvePlaylist
 '''
 
-_LIST_SCRIPT = '''
+_LIST_SCRIPT = SANITIZE_HANDLER + '''
 on run argv
     set us to character id 31
     set rs to character id 30
@@ -25,14 +25,14 @@ on run argv
             try
                 if smart of p then set sm to "true"
             end try
-            set out to out & (persistent ID of p) & us & (name of p) & us & (count of tracks of p) & us & sm & rs
+            set out to out & (persistent ID of p) & us & (my san(name of p)) & us & (count of tracks of p) & us & sm & rs
         end repeat
         return out
     end tell
 end run
 '''
 
-_GET_TRACKS_SCRIPT = _RESOLVE + '''
+_GET_TRACKS_SCRIPT = SANITIZE_HANDLER + _RESOLVE + '''
 on run argv
     set q to item 1 of argv
     set maxN to (item 2 of argv) as integer
@@ -48,7 +48,7 @@ on run argv
             try
                 set d to ((duration of t) as integer) as text
             end try
-            set out to out & (persistent ID of t) & us & (name of t) & us & (artist of t) & us & (album of t) & us & d & rs
+            set out to out & (persistent ID of t) & us & (my san(name of t)) & us & (my san(artist of t)) & us & (my san(album of t)) & us & d & rs
             set n to n + 1
         end repeat
     end tell

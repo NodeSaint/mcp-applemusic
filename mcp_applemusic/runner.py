@@ -4,6 +4,29 @@ import subprocess
 US = "\x1f"  # unit separator: between fields of a record
 RS = "\x1e"  # record separator: between records
 
+# Absolute path to the system binary — avoids any PATH-lookup / shim surface.
+_OSASCRIPT = "/usr/bin/osascript"
+
+# Shared AppleScript handler: strips the US/RS delimiter control characters out
+# of a text value before it is emitted. Without this, a track whose title
+# literally contained a US/RS char (metadata is influenceable by whoever
+# publishes a track) could inject extra fields or a phantom record into the
+# parsed output. Prepend to an emitting script and wrap free-text fields as
+# `my san(name of t)`.
+SANITIZE_HANDLER = '''
+on san(v)
+    set v to v as text
+    repeat with sep in {character id 31, character id 30}
+        set AppleScript's text item delimiters to sep
+        set parts to text items of v
+        set AppleScript's text item delimiters to " "
+        set v to parts as text
+    end repeat
+    set AppleScript's text item delimiters to ""
+    return v
+end san
+'''
+
 _HINTS = {
     "-600": "Music.app is not running. Open the Music app and try again.",
     "-609": "Music.app is not running. Open the Music app and try again.",
@@ -24,7 +47,7 @@ def run_script(script: str, *args: str) -> str:
     # positional argv item. Without it, any user value beginning with "-"
     # (e.g. "-e <script>") is parsed as an osascript option — an injection
     # vector that can smuggle a second script and reach `do shell script`.
-    cmd = ["osascript", "-e", script, "--", *[str(a) for a in args]]
+    cmd = [_OSASCRIPT, "-e", script, "--", *[str(a) for a in args]]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     except subprocess.TimeoutExpired:

@@ -1,5 +1,5 @@
 """Playback control for Music.app on this Mac."""
-from .runner import run_script, US
+from .runner import run_script, US, SANITIZE_HANDLER
 
 _ACTIONS = {
     "play": 'tell application "Music" to play',
@@ -9,7 +9,7 @@ _ACTIONS = {
     "previous": 'tell application "Music" to previous track',
 }
 
-_NOW_PLAYING_SCRIPT = '''
+_NOW_PLAYING_SCRIPT = SANITIZE_HANDLER + '''
 on run argv
     set us to character id 31
     tell application "Music"
@@ -22,7 +22,7 @@ on run argv
                 try
                     set d to ((duration of t) as integer) as text
                 end try
-                set trackPart to us & (persistent ID of t) & us & (name of t) & us & (artist of t) & us & (album of t) & us & d
+                set trackPart to us & (persistent ID of t) & us & (my san(name of t)) & us & (my san(artist of t)) & us & (my san(album of t)) & us & d
             end try
         end if
         return stateText & trackPart & us & (sound volume) & us & (shuffle enabled) & us & ((song repeat) as text)
