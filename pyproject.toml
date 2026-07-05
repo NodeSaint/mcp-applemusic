@@ -1,6 +1,6 @@
 [project]
 name = "mcp-applemusic"
-version = "0.2.2"
+version = "0.2.3"
 description = "An MCP server for Apple Music: playback, library search, and playlist management"
 readme = "README.md"
 requires-python = ">=3.13"

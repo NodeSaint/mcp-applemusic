@@ -85,7 +85,17 @@ Every track operation uses Music's **persistent IDs** from `music_search` — no
 
 The whole server talks to Music through **one** gateway (`runner.py`). Every value you give it — a search term, a playlist name — is passed to `osascript` as a positional argument behind a `--` terminator, **never** concatenated into script source. That makes AppleScript injection structurally impossible: a track named `"; do shell script "rm -rf ~"` is just a string, never code. There is no `eval`, no `shell=True`, no `do shell script` anywhere in the codebase. See [`CHANGELOG.md`](CHANGELOG.md) for the hardening history.
 
-It's a local, stdio server with no network surface — it can only reach the Music app on the machine it runs on.
+It's a local, stdio server with no network surface — it can only reach the Music app on the machine it runs on. Its one dependency (`mcp`) audits clean (`pip-audit`), and `osascript` is invoked at its pinned absolute path.
+
+**Read-only mode.** Because an LLM can be steered by prompt injection, set `MUSIC_MCP_READONLY=1` to make the server structurally incapable of changing anything — every mutating tool (create, add, remove, rename, delete, rate, playback) is refused with a clear message, while search and browse still work. Add it to the server's environment:
+
+```json
+"applemusic": {
+  "command": "uvx",
+  "args": ["--from", "git+https://github.com/NodeSaint/mcp-applemusic", "mcp-applemusic"],
+  "env": { "MUSIC_MCP_READONLY": "1" }
+}
+```
 
 ## Roadmap
 

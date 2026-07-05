@@ -1,4 +1,6 @@
 """FastMCP tool surface. Thin: validate → call module → shape result."""
+import os
+
 from mcp.server.fastmcp import FastMCP
 
 from . import library, playback, playlists
@@ -6,8 +8,23 @@ from .runner import AppleScriptError
 
 mcp = FastMCP("AppleMusic")
 
+_TRUTHY = {"1", "true", "yes", "on"}
 
-def _safe(fn):
+
+def _readonly() -> bool:
+    """Read-only mode disables every state-changing tool. Set MUSIC_MCP_READONLY
+    to make the server incapable of altering the library — a hard stop against a
+    prompt-injected model deleting or overwriting playlists."""
+    return os.environ.get("MUSIC_MCP_READONLY", "").strip().lower() in _TRUTHY
+
+
+def _safe(fn, write: bool = False):
+    if write and _readonly():
+        return {
+            "error": "This tool changes your Music library and is disabled: the "
+                     "server is running in read-only mode (MUSIC_MCP_READONLY is set).",
+            "hint": "Unset MUSIC_MCP_READONLY to allow changes.",
+        }
     try:
         return fn()
     except AppleScriptError as e:
@@ -19,7 +36,7 @@ def _safe(fn):
 @mcp.tool()
 def music_playback(action: str) -> dict | str:
     """Control playback: action is one of play, pause, toggle, next, previous."""
-    return _safe(lambda: playback.control(action))
+    return _safe(lambda: playback.control(action), write=True)
 
 
 @mcp.tool()
@@ -32,7 +49,7 @@ def music_now_playing() -> dict:
 def music_set_options(volume: int | None = None, shuffle: bool | None = None,
                       repeat: str | None = None) -> dict:
     """Set volume (0-100), shuffle (true/false), and/or repeat (off/one/all)."""
-    return _safe(lambda: playback.set_options(volume, shuffle, repeat))
+    return _safe(lambda: playback.set_options(volume, shuffle, repeat), write=True)
 
 
 @mcp.tool()
@@ -45,10 +62,10 @@ def music_play(track_id: str | None = None, playlist: str | None = None,
     if len(given) != 1:
         return {"error": "Provide exactly one of track_id, playlist, or track_ids", "hint": None}
     if track_id:
-        return _safe(lambda: playback.play_track(track_id))
+        return _safe(lambda: playback.play_track(track_id), write=True)
     if playlist:
-        return _safe(lambda: playback.play_playlist(playlist))
-    return _safe(lambda: playback.play_tracks(track_ids))
+        return _safe(lambda: playback.play_playlist(playlist), write=True)
+    return _safe(lambda: playback.play_tracks(track_ids), write=True)
 
 
 @mcp.tool()
@@ -84,7 +101,7 @@ def music_rate(track_id: str, rating: float | None = None,
         if not results:
             raise ValueError("Provide at least one of rating, favorited, disliked")
         return results
-    return _safe(go)
+    return _safe(go, write=True)
 
 
 @mcp.tool()
@@ -104,33 +121,33 @@ def music_create_playlist(name: str, track_ids: list[str] | None = None) -> dict
     """Create a playlist, optionally populated with tracks (persistent IDs from
     music_search). Syncs to iPhone via iCloud Music Library. Reports which IDs
     could not be added."""
-    return _safe(lambda: playlists.create(name, track_ids))
+    return _safe(lambda: playlists.create(name, track_ids), write=True)
 
 
 @mcp.tool()
 def music_add_to_playlist(playlist: str, track_ids: list[str]) -> dict:
     """Add tracks (persistent IDs) to an existing playlist."""
-    return _safe(lambda: playlists.add_tracks(playlist, track_ids))
+    return _safe(lambda: playlists.add_tracks(playlist, track_ids), write=True)
 
 
 @mcp.tool()
 def music_remove_from_playlist(playlist: str, track_ids: list[str]) -> dict:
     """Remove tracks (persistent IDs) from a playlist. Does not delete them from
     the library."""
-    return _safe(lambda: playlists.remove_tracks(playlist, track_ids))
+    return _safe(lambda: playlists.remove_tracks(playlist, track_ids), write=True)
 
 
 @mcp.tool()
 def music_rename_playlist(playlist: str, new_name: str) -> dict | str:
     """Rename a playlist (identified by persistent ID or exact current name)."""
-    return _safe(lambda: playlists.rename(playlist, new_name))
+    return _safe(lambda: playlists.rename(playlist, new_name), write=True)
 
 
 @mcp.tool()
 def music_delete_playlist(playlist: str) -> dict | str:
     """Delete a playlist (by persistent ID or exact name). Tracks stay in the
     library."""
-    return _safe(lambda: playlists.delete(playlist))
+    return _safe(lambda: playlists.delete(playlist), write=True)
 
 
 def main():

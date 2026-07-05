@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 — 2026-07-05 — safe-by-choice controls
+
+OWASP Top 10 pass. Most items are N/A (no network, DB, auth, or web input in the server); the two that apply:
+
+- **A06 (vulnerable components):** ran `pip-audit` on the full dependency tree — no known vulnerabilities.
+- **A01 / A04 (access control & insecure design):** added `MUSIC_MCP_READONLY`. When set, every state-changing tool (playback, set_options, play, rate, and all playlist create/add/remove/rename/delete) is refused before it runs, leaving only search/browse. This is the hard stop against a prompt-injected model deleting or overwriting a playlist. Default (unset) keeps full functionality. 4 new tests; verified live that writes are blocked and reads still work.
+
 ## 0.2.2 — 2026-07-05 — second security pass
 
 Thorough review of the whole package. Verified clean: single osascript gateway (no other subprocess/`eval`/`exec`), no network surface, no secrets, `--` terminator in place, all values via argv.
