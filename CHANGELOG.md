@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased (branch: dev)
+
+- Rewrote `README.md` — proper hero, quick example, categorized tool tables, security and roadmap sections.
+- Added a 3D landing page (`site/index.html`) deployed to GitHub Pages at https://nodesaint.github.io/mcp-applemusic/ from the `gh-pages` branch. Three.js hero (rotating vinyl record + audio-waveform particle field with bloom), Apple Music gradient aesthetic, Fontshare/Clash Display type, scroll reveals, custom cursor, graceful CSS fallback if WebGL/CDN is unavailable.
+
 ## 0.2.1 — 2026-07-05 (branch: dev) — security hardening
 
 - **Fixed an argument-injection vulnerability (high severity).** `run_script` built the `osascript` command without a `--` option terminator, so any user-controlled value beginning with `-` (e.g. `-e <script>`) was parsed by osascript as an option rather than argv data — smuggling a second script and reaching `do shell script` (arbitrary code execution). Added the `--` terminator; all user values are now unconditionally treated as data. Regression test added.
