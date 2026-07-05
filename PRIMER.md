@@ -4,7 +4,7 @@ Session continuity notes. Update before context is lost.
 
 ## Current state (2026-07-05)
 
-**Phase 1 (AppleScript-deep) is COMPLETE and live-verified.** Fork of kennethreitz/mcp-applemusic at NodeSaint/mcp-applemusic, working branch `dev`.
+**Phase 1 (AppleScript-deep) is COMPLETE, live-verified, and MERGED TO `main` (v0.2.1).** Fork of kennethreitz/mcp-applemusic at NodeSaint/mcp-applemusic. `main` = released/installable version; `dev` = ongoing work; `gh-pages` = landing page. The README install command (`uvx --from git+…/mcp-applemusic`) pulls `main`, so main must always stay installable. Verified end-to-end: `uvx` from the default branch builds, installs, and boots clean.
 
 - 14 `music_*` tools (playback, search, ratings, playlist CRUD) — see README table.
 - 37 unit tests pass (`uv run pytest`); live smoke passes end-to-end (`uv run python scripts/live_smoke.py`, all ops 150–850ms on the 2,804-track library).
