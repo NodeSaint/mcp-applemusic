@@ -13,9 +13,9 @@ _NOW_PLAYING_SCRIPT = '''
 on run argv
     set us to character id 31
     tell application "Music"
-        set st to (player state) as text
+        set stateText to (player state) as text
         set trackPart to us & us & us & us & us
-        if st is "playing" or st is "paused" then
+        if stateText is "playing" or stateText is "paused" then
             try
                 set t to current track
                 set d to ""
@@ -25,7 +25,7 @@ on run argv
                 set trackPart to us & (persistent ID of t) & us & (name of t) & us & (artist of t) & us & (album of t) & us & d
             end try
         end if
-        return st & trackPart & us & (sound volume) & us & (shuffle enabled) & us & ((song repeat) as text)
+        return stateText & trackPart & us & (sound volume) & us & (shuffle enabled) & us & ((song repeat) as text)
     end tell
 end run
 '''

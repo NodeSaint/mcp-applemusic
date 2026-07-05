@@ -105,7 +105,7 @@ on run argv
     set q to item 1 of argv
     set us to character id 31
     set p to my resolvePlaylist(q)
-    set removed to 0
+    set removedCount to 0
     set missing to ""
     tell application "Music"
         repeat with i from 2 to count of argv
@@ -117,11 +117,11 @@ on run argv
                 repeat with m in matches
                     delete m
                 end repeat
-                set removed to removed + 1
+                set removedCount to removedCount + 1
             end if
         end repeat
     end tell
-    return (removed as text) & us & missing
+    return (removedCount as text) & us & missing
 end run
 '''
 
