@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mcp-applemusic — Give Claude the keys to your Apple Music</title>
+<meta name="description" content="An MCP server that connects Claude to Apple Music. Search your library, build playlists, run playback — in plain language. Changes sync to your iPhone." />
+<meta property="og:title" content="mcp-applemusic" />
+<meta property="og:description" content="Give Claude the keys to your Apple Music. Search, build playlists, run playback — in plain language." />
+<meta name="theme-color" content="#0a0507" />
+<link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@600,700,500,400&f[]=general-sans@400,500,600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0507;
+    --bg-2: #140a0d;
+    --ink: #fdeef0;
+    --ink-dim: #b79aa0;
+    --ink-faint: #7c6167;
+    --am-pink: #fc3158;
+    --am-red: #ff4d6d;
+    --am-coral: #ff6b5e;
+    --am-orange: #ff9a4d;
+    --glass: rgba(255, 255, 255, 0.04);
+    --glass-line: rgba(255, 220, 225, 0.10);
+    --grad: linear-gradient(120deg, var(--am-pink), var(--am-coral) 45%, var(--am-orange));
+    --maxw: 1180px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "General Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    overflow-x: hidden;
+    cursor: none;
+  }
+  @media (pointer: coarse) { body { cursor: auto; } #cursor { display: none; } }
+
+  ::selection { background: var(--am-pink); color: #fff; }
+
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3 { font-family: "Clash Display", sans-serif; font-weight: 600; line-height: 1.02; letter-spacing: -0.02em; }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
+
+  /* ---------- atmosphere: grain + vignette ---------- */
+  .grain {
+    position: fixed; inset: 0; z-index: 9998; pointer-events: none; opacity: 0.045;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+  .vignette { position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: radial-gradient(120% 90% at 50% 0%, transparent 40%, rgba(0,0,0,0.55) 100%); }
+
+  /* ---------- custom cursor ---------- */
+  #cursor { position: fixed; top: 0; left: 0; z-index: 9999; width: 26px; height: 26px;
+    border: 1.5px solid rgba(255,120,140,0.7); border-radius: 50%; pointer-events: none;
+    transform: translate(-50%, -50%); transition: width .2s, height .2s, background .2s, border-color .2s;
+    mix-blend-mode: screen; }
+  #cursor.hot { width: 52px; height: 52px; background: rgba(252,49,88,0.18); border-color: transparent; }
+
+  /* ---------- nav ---------- */
+  nav { position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 28px; max-width: var(--maxw); margin: 0 auto;
+    transition: transform .4s ease; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: "Clash Display"; font-weight: 600; font-size: 18px; letter-spacing: -0.01em; }
+  .brand .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--grad); box-shadow: 0 0 18px var(--am-pink); }
+  .nav-links { display: flex; align-items: center; gap: 26px; font-size: 15px; color: var(--ink-dim); }
+  .nav-links a { transition: color .2s; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-ghub { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 1px solid var(--glass-line);
+    border-radius: 999px; background: var(--glass); backdrop-filter: blur(8px); color: var(--ink); font-weight: 500; transition: border-color .2s, transform .2s; }
+  .nav-ghub:hover { border-color: rgba(255,120,140,0.5); transform: translateY(-1px); }
+  @media (max-width: 720px) { .nav-links a:not(.nav-ghub) { display: none; } }
+
+  /* ---------- hero ---------- */
+  .hero { position: relative; min-height: 100svh; display: flex; align-items: center; }
+  #scene { position: absolute; inset: 0; z-index: 0; }
+  .hero-fallback { position: absolute; inset: 0; z-index: 0;
+    background: radial-gradient(60% 55% at 68% 42%, rgba(252,49,88,0.35), transparent 60%),
+                radial-gradient(45% 45% at 78% 58%, rgba(255,154,77,0.28), transparent 65%); }
+  .hero-inner { position: relative; z-index: 3; padding-top: 96px; padding-bottom: 60px; max-width: 780px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 10px; font-family: "JetBrains Mono", monospace;
+    font-size: 12.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--am-orange);
+    border: 1px solid rgba(255,154,77,0.25); border-radius: 999px; padding: 7px 14px; margin-bottom: 28px;
+    background: rgba(255,154,77,0.06); }
+  .eyebrow .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--am-orange); box-shadow: 0 0 10px var(--am-orange); animation: blink 2s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+  h1.title { font-size: clamp(44px, 7.4vw, 92px); font-weight: 600; }
+  h1.title .grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { margin-top: 26px; font-size: clamp(17px, 2.1vw, 21px); color: var(--ink-dim); max-width: 560px; }
+
+  .cmd { margin-top: 34px; display: inline-flex; align-items: stretch; gap: 0; max-width: 100%;
+    border: 1px solid var(--glass-line); border-radius: 14px; background: rgba(10,5,7,0.6);
+    backdrop-filter: blur(12px); overflow: hidden; }
+  .cmd code { font-family: "JetBrains Mono", monospace; font-size: 13.5px; color: var(--ink);
+    padding: 15px 18px; white-space: nowrap; overflow-x: auto; }
+  .cmd .prompt { color: var(--am-pink); user-select: none; }
+  .cmd button { border: none; border-left: 1px solid var(--glass-line); background: var(--glass);
+    color: var(--ink-dim); padding: 0 18px; font-family: "General Sans"; font-size: 14px; font-weight: 500;
+    cursor: none; transition: background .2s, color .2s; }
+  .cmd button:hover { background: rgba(252,49,88,0.15); color: var(--ink); }
+  .cmd button.copied { color: var(--am-orange); }
+
+  .cta-row { margin-top: 30px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 9px; padding: 13px 24px; border-radius: 999px; font-weight: 500; font-size: 15px; transition: transform .2s, box-shadow .3s, border-color .2s; }
+  .btn-primary { background: var(--grad); color: #1a0206; box-shadow: 0 8px 30px rgba(252,49,88,0.4); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 42px rgba(252,49,88,0.55); }
+  .btn-ghost { border: 1px solid var(--glass-line); color: var(--ink); }
+  .btn-ghost:hover { border-color: rgba(255,120,140,0.5); transform: translateY(-2px); }
+
+  .scroll-hint { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 3;
+    font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink-faint); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .scroll-hint .line { width: 1px; height: 40px; background: linear-gradient(var(--am-pink), transparent); animation: drop 2.2s infinite; }
+  @keyframes drop { 0%{transform:scaleY(0);transform-origin:top} 45%{transform:scaleY(1);transform-origin:top} 55%{transform:scaleY(1);transform-origin:bottom} 100%{transform:scaleY(0);transform-origin:bottom} }
+
+  /* ---------- marquee ---------- */
+  .marquee { border-top: 1px solid var(--glass-line); border-bottom: 1px solid var(--glass-line);
+    padding: 20px 0; overflow: hidden; white-space: nowrap; background: rgba(20,10,13,0.4); position: relative; z-index: 4; }
+  .marquee-track { display: inline-block; animation: scroll-x 32s linear infinite; }
+  .marquee span { font-family: "Clash Display"; font-weight: 500; font-size: 26px; color: var(--ink-faint); margin: 0 22px; }
+  .marquee span .m { color: var(--am-coral); }
+  @keyframes scroll-x { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+  /* ---------- sections ---------- */
+  section { position: relative; z-index: 4; }
+  .band { padding: 120px 0; }
+  .kicker { font-family: "JetBrains Mono", monospace; font-size: 12.5px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--am-pink); margin-bottom: 18px; }
+  .band h2 { font-size: clamp(32px, 4.6vw, 56px); max-width: 720px; }
+  .band .lede { margin-top: 20px; font-size: 19px; color: var(--ink-dim); max-width: 620px; }
+
+  .reveal { opacity: 0; transform: translateY(26px); transition: opacity .8s cubic-bezier(.2,.7,.2,1), transform .8s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* feature triptych */
+  .tri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 60px; }
+  @media (max-width: 860px) { .tri { grid-template-columns: 1fr; } }
+  .feat { padding: 30px; border: 1px solid var(--glass-line); border-radius: 20px; background: var(--glass);
+    backdrop-filter: blur(6px); position: relative; overflow: hidden; transition: border-color .3s, transform .3s; }
+  .feat:hover { border-color: rgba(255,120,140,0.4); transform: translateY(-4px); }
+  .feat .n { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--am-orange); letter-spacing: 0.1em; }
+  .feat h3 { font-size: 23px; margin: 14px 0 10px; }
+  .feat p { color: var(--ink-dim); font-size: 15.5px; }
+  .feat .glow { position: absolute; width: 160px; height: 160px; border-radius: 50%; filter: blur(60px);
+    background: var(--am-pink); opacity: 0.14; bottom: -60px; right: -40px; }
+
+  /* tools grid */
+  .tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin-top: 54px; }
+  .tool { padding: 20px 22px; border: 1px solid var(--glass-line); border-radius: 16px; background: var(--glass);
+    transition: transform .25s, border-color .25s, background .25s; }
+  .tool:hover { transform: translateY(-3px); border-color: rgba(255,120,140,0.45); background: rgba(252,49,88,0.06); }
+  .tool .tname { font-family: "JetBrains Mono", monospace; font-size: 13.5px; color: var(--am-coral); }
+  .tool .tdesc { margin-top: 8px; font-size: 14px; color: var(--ink-dim); }
+  .tool .cat { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); font-family: "JetBrains Mono", monospace; }
+
+  /* split feature (sync / security) */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; gap: 34px; } }
+  .split .visual { aspect-ratio: 1/1; border-radius: 24px; border: 1px solid var(--glass-line);
+    background: radial-gradient(circle at 40% 35%, rgba(252,49,88,0.25), transparent 60%), rgba(20,10,13,0.5);
+    display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+  .split code.block { display: block; font-family: "JetBrains Mono", monospace; font-size: 13px; line-height: 1.7;
+    color: var(--ink-dim); padding: 26px; text-align: left; white-space: pre; overflow-x: auto; width: 100%; }
+  .split code.block .c-red { color: var(--am-pink); }
+  .split code.block .c-or { color: var(--am-orange); }
+  .split code.block .c-dim { color: var(--ink-faint); }
+
+  .ring { width: 62%; aspect-ratio: 1; border-radius: 50%; border: 2px solid rgba(255,120,140,0.35);
+    display: flex; align-items: center; justify-content: center; animation: spin 18s linear infinite; }
+  .ring::before { content:""; width: 70%; aspect-ratio:1; border-radius:50%; border: 2px solid rgba(255,154,77,0.3); }
+  .ring .core { position: absolute; width: 26%; aspect-ratio: 1; border-radius: 50%; background: var(--grad); box-shadow: 0 0 50px var(--am-pink); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* install */
+  .code-card { border: 1px solid var(--glass-line); border-radius: 18px; background: rgba(10,5,7,0.65); overflow: hidden; margin-top: 22px; }
+  .code-card .head { display: flex; gap: 7px; padding: 14px 18px; border-bottom: 1px solid var(--glass-line); }
+  .code-card .head i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .code-card pre { padding: 22px; overflow-x: auto; font-family: "JetBrains Mono", monospace; font-size: 13.5px; line-height: 1.75; }
+  .code-card .prompt { color: var(--am-pink); }
+  .code-card .cmt { color: var(--ink-faint); }
+
+  .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 40px; }
+  @media (max-width: 860px) { .install-grid { grid-template-columns: 1fr; } }
+  .step-badge { font-family: "Clash Display"; font-weight: 600; font-size: 15px; color: var(--am-orange); }
+
+  /* roadmap */
+  .rm { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 50px; }
+  @media (max-width: 720px) { .rm { grid-template-columns: 1fr; } }
+  .phase { padding: 34px; border-radius: 22px; border: 1px solid var(--glass-line); position: relative; }
+  .phase.done { background: linear-gradient(160deg, rgba(252,49,88,0.10), rgba(255,154,77,0.05)); border-color: rgba(255,120,140,0.3); }
+  .phase .tag { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; padding: 5px 11px; border-radius: 999px; display: inline-block; }
+  .phase.done .tag { background: var(--grad); color: #1a0206; }
+  .phase.next .tag { border: 1px solid var(--glass-line); color: var(--ink-dim); }
+  .phase h3 { font-size: 26px; margin: 18px 0 12px; }
+  .phase p { color: var(--ink-dim); font-size: 15.5px; }
+
+  /* footer */
+  footer { position: relative; z-index: 4; border-top: 1px solid var(--glass-line); padding: 60px 0 44px; margin-top: 40px; }
+  .foot-grid { display: flex; justify-content: space-between; align-items: flex-start; gap: 30px; flex-wrap: wrap; }
+  footer .credit { color: var(--ink-faint); font-size: 14px; max-width: 420px; }
+  footer a.link { color: var(--am-coral); }
+  footer .big { font-family: "Clash Display"; font-weight: 600; font-size: clamp(40px, 8vw, 96px);
+    background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+    line-height: 1; margin-top: 46px; letter-spacing: -0.03em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+  <div class="grain"></div>
+  <div class="vignette"></div>
+  <div id="cursor"></div>
+
+  <nav id="nav">
+    <a class="brand" href="#top"><span class="dot"></span> mcp-applemusic</a>
+    <div class="nav-links">
+      <a href="#what" data-hot>What</a>
+      <a href="#tools" data-hot>Tools</a>
+      <a href="#security" data-hot>Security</a>
+      <a class="nav-ghub" href="https://github.com/NodeSaint/mcp-applemusic" data-hot>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </nav>
+
+  <a id="top"></a>
+  <header class="hero">
+    <div class="hero-fallback"></div>
+    <div id="scene"></div>
+    <div class="wrap hero-inner">
+      <div class="eyebrow reveal in"><span class="pulse"></span> Model Context Protocol · macOS</div>
+      <h1 class="title reveal in">Give Claude the keys to your <span class="grad">Apple&nbsp;Music</span>.</h1>
+      <p class="sub reveal in">Search your library, build playlists, run playback — all in plain language, straight from any MCP client. What changes on your Mac syncs to your iPhone.</p>
+
+      <div class="cmd reveal in">
+        <code id="cmd-text"><span class="prompt">$ </span>claude mcp add applemusic -- uvx --from git+https://github.com/NodeSaint/mcp-applemusic mcp-applemusic</code>
+        <button id="copy-btn" data-hot>Copy</button>
+      </div>
+
+      <div class="cta-row reveal in">
+        <a class="btn btn-primary" href="#install" data-hot>Install it →</a>
+        <a class="btn btn-ghost" href="https://github.com/NodeSaint/mcp-applemusic" data-hot>View source</a>
+      </div>
+    </div>
+    <div class="scroll-hint"><span>scroll</span><span class="line"></span></div>
+  </header>
+
+  <div class="marquee">
+    <div class="marquee-track" id="mq">
+      <span>build <span class="m">playlists</span></span><span>·</span><span>search your <span class="m">library</span></span><span>·</span><span>run <span class="m">playback</span></span><span>·</span><span>rate &amp; <span class="m">favorite</span></span><span>·</span><span>syncs to <span class="m">iPhone</span></span><span>·</span>
+    </div>
+  </div>
+
+  <!-- WHAT -->
+  <section id="what" class="band">
+    <div class="wrap">
+      <div class="kicker reveal">What it does</div>
+      <h2 class="reveal">Fourteen tools that turn a sentence into something your speakers actually do.</h2>
+      <p class="lede reveal">Ask for “a rainy-Sunday playlist from my library” or “skip this and turn it down.” The server translates it into precise operations on the Music app — and everything it touches propagates to your other devices through iCloud Music Library.</p>
+
+      <div class="tri">
+        <div class="feat reveal"><div class="glow"></div>
+          <div class="n">01</div><h3>Speaks plain English</h3>
+          <p>No commands to memorize. Describe the vibe, the mood, the constraint — Claude picks the tracks and does the work.</p>
+        </div>
+        <div class="feat reveal"><div class="glow"></div>
+          <div class="n">02</div><h3>Never grabs the wrong song</h3>
+          <p>Every operation runs on Music’s persistent track IDs, not fuzzy name matching. Batch actions report exactly what landed and what didn’t.</p>
+        </div>
+        <div class="feat reveal"><div class="glow"></div>
+          <div class="n">03</div><h3>Follows you everywhere</h3>
+          <p>It drives Music on your Mac. New playlists, edits, ratings and favorites sync to your iPhone and iPad in seconds.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOOLS -->
+  <section id="tools" class="band">
+    <div class="wrap">
+      <div class="kicker reveal">The surface</div>
+      <h2 class="reveal">Everything Claude can reach.</h2>
+      <div class="tools" id="tool-grid"></div>
+    </div>
+  </section>
+
+  <!-- SYNC -->
+  <section class="band">
+    <div class="wrap split">
+      <div class="visual reveal">
+        <div class="ring"><div class="core"></div></div>
+      </div>
+      <div>
+        <div class="kicker reveal">Mac in, iPhone out</div>
+        <h2 class="reveal">Build it on the desktop. Play it on the train.</h2>
+        <p class="lede reveal">The server controls the Music app where it runs — your Mac. With iCloud Music Library on, every change it makes rides that sync straight to your phone. There’s no separate app to install on iOS and nothing to configure. Make a playlist here; it’s in your pocket before you’ve closed the laptop.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECURITY -->
+  <section id="security" class="band">
+    <div class="wrap split">
+      <div>
+        <div class="kicker reveal">Built safe</div>
+        <h2 class="reveal">Injection isn’t patched out. It’s designed out.</h2>
+        <p class="lede reveal">Every value you give the server — a search term, a playlist name — reaches AppleScript as a positional argument behind a <code style="font-family:'JetBrains Mono';color:var(--am-coral)">--</code> terminator, never concatenated into script source. A track literally named <code style="font-family:'JetBrains Mono';color:var(--am-coral)">"; do shell script …</code> is just a string. No <code style="font-family:'JetBrains Mono';color:var(--am-coral)">eval</code>, no shell, no network surface.</p>
+      </div>
+      <div class="visual reveal">
+        <code class="block"><span class="c-dim"># one gateway. values are data, never code.</span>
+cmd = [<span class="c-or">"osascript"</span>, <span class="c-or">"-e"</span>, script,
+       <span class="c-red">"--"</span>, *args]
+<span class="c-dim">#            ↑ terminator: everything</span>
+<span class="c-dim">#              after this is argv data</span>
+
+subprocess.run(cmd, timeout=<span class="c-or">120</span>)</code>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section id="install" class="band">
+    <div class="wrap">
+      <div class="kicker reveal">Ninety seconds</div>
+      <h2 class="reveal">Install.</h2>
+      <p class="lede reveal">You’ll need macOS with the Music app, an Apple Music subscription, <a class="link" style="color:var(--am-coral)" href="https://docs.astral.sh/uv/">uv</a>, and Sync Library switched on.</p>
+
+      <div class="install-grid">
+        <div class="reveal">
+          <div class="step-badge">Claude Code</div>
+          <div class="code-card">
+            <div class="head"><i style="background:#ff5f56"></i><i style="background:#ffbd2e"></i><i style="background:#27c93f"></i></div>
+            <pre><span class="prompt">$</span> claude mcp add applemusic -- \
+    uvx --from \
+    git+https://github.com/NodeSaint/mcp-applemusic \
+    mcp-applemusic</pre>
+          </div>
+        </div>
+        <div class="reveal">
+          <div class="step-badge">Claude Desktop</div>
+          <div class="code-card">
+            <div class="head"><i style="background:#ff5f56"></i><i style="background:#ffbd2e"></i><i style="background:#27c93f"></i></div>
+            <pre><span class="cmt">// claude_desktop_config.json</span>
+{
+  <span style="color:var(--am-coral)">"mcpServers"</span>: {
+    <span style="color:var(--am-coral)">"applemusic"</span>: {
+      <span style="color:var(--am-coral)">"command"</span>: <span style="color:var(--am-orange)">"uvx"</span>,
+      <span style="color:var(--am-coral)">"args"</span>: [<span style="color:var(--am-orange)">"--from"</span>,
+        <span style="color:var(--am-orange)">"git+https://github.com/NodeSaint/mcp-applemusic"</span>,
+        <span style="color:var(--am-orange)">"mcp-applemusic"</span>]
+    }
+  }
+}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section class="band">
+    <div class="wrap">
+      <div class="kicker reveal">Where it’s going</div>
+      <h2 class="reveal">Roadmap.</h2>
+      <div class="rm">
+        <div class="phase done reveal">
+          <span class="tag">Shipped · live-tested</span>
+          <h3>Phase 1 — Your library</h3>
+          <p>All 14 tools over AppleScript: playback, search, ratings, full playlist CRUD. Works today, no developer account, 38 tests green plus an end-to-end run against a real 2,800-track library.</p>
+        </div>
+        <div class="phase next reveal">
+          <span class="tag">Designed · next</span>
+          <h3>Phase 2 — The whole catalog</h3>
+          <p>The Apple Music Web API layer: search all of Apple Music, add songs you don’t own yet, native cloud playlists. Spec’s written; it needs an Apple Developer key to switch on.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div class="foot-grid">
+        <div>
+          <a class="brand" href="#top"><span class="dot"></span> mcp-applemusic</a>
+          <p class="credit" style="margin-top:14px">A ground-up rework of <a class="link" href="https://github.com/kennethreitz/mcp-applemusic">kennethreitz/mcp-applemusic</a>. MIT licensed. Original work © Kenneth Reitz · this fork © NodeSaint.</p>
+        </div>
+        <div class="nav-links" style="gap:22px">
+          <a href="https://github.com/NodeSaint/mcp-applemusic" data-hot>Source</a>
+          <a href="https://github.com/NodeSaint/mcp-applemusic/blob/dev/CHANGELOG.md" data-hot>Changelog</a>
+          <a href="https://modelcontextprotocol.io" data-hot>About MCP</a>
+        </div>
+      </div>
+      <div class="big">Talk to your library.</div>
+    </div>
+  </footer>
+
+  <!-- three.js hero -->
+  <script type="importmap">
+  { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+  } }
+  </script>
+  <script type="module">
+    // ---------- tools data ----------
+    const TOOLS = [
+      ["PLAYBACK","music_playback","play · pause · next · previous"],
+      ["PLAYBACK","music_now_playing","what’s on, volume, shuffle, repeat"],
+      ["PLAYBACK","music_set_options","volume, shuffle, repeat mode"],
+      ["PLAYBACK","music_play","a track, a playlist, or a DJ set"],
+      ["LIBRARY","music_search","by song, artist, album or genre"],
+      ["LIBRARY","music_track_info","genre, year, plays, rating, cloud"],
+      ["LIBRARY","music_rate","stars, favorite, dislike"],
+      ["PLAYLISTS","music_playlists","list them all with counts"],
+      ["PLAYLISTS","music_playlist_tracks","see what’s inside"],
+      ["PLAYLISTS","music_create_playlist","make one, pre-filled"],
+      ["PLAYLISTS","music_add_to_playlist","add tracks"],
+      ["PLAYLISTS","music_remove_from_playlist","remove tracks"],
+      ["PLAYLISTS","music_rename_playlist","rename"],
+      ["PLAYLISTS","music_delete_playlist","delete, library kept"],
+    ];
+    const grid = document.getElementById("tool-grid");
+    TOOLS.forEach(([cat,name,desc],i)=>{
+      const el=document.createElement("div");
+      el.className="tool reveal"; el.style.transitionDelay=(i%4*60)+"ms";
+      el.innerHTML=`<div class="cat">${cat}</div><div class="tname">${name}</div><div class="tdesc">${desc}</div>`;
+      grid.appendChild(el);
+    });
+
+    // ---------- copy button ----------
+    const copyBtn=document.getElementById("copy-btn");
+    copyBtn.addEventListener("click",async()=>{
+      const t="claude mcp add applemusic -- uvx --from git+https://github.com/NodeSaint/mcp-applemusic mcp-applemusic";
+      try{await navigator.clipboard.writeText(t);}catch(e){}
+      copyBtn.textContent="Copied ✓"; copyBtn.classList.add("copied");
+      setTimeout(()=>{copyBtn.textContent="Copy";copyBtn.classList.remove("copied");},1600);
+    });
+
+    // ---------- custom cursor ----------
+    const cursor=document.getElementById("cursor");
+    let cx=innerWidth/2, cy=innerHeight/2, tx=cx, ty=cy;
+    addEventListener("mousemove",e=>{tx=e.clientX;ty=e.clientY;});
+    (function loop(){ cx+=(tx-cx)*0.2; cy+=(ty-cy)*0.2; cursor.style.transform=`translate(${cx}px,${cy}px) translate(-50%,-50%)`; requestAnimationFrame(loop);})();
+    document.querySelectorAll("[data-hot], a.btn, .tool, .feat, button").forEach(el=>{
+      el.addEventListener("mouseenter",()=>cursor.classList.add("hot"));
+      el.addEventListener("mouseleave",()=>cursor.classList.remove("hot"));
+    });
+
+    // ---------- reveal on scroll ----------
+    const io=new IntersectionObserver((entries)=>{
+      entries.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target);} });
+    },{threshold:0.14});
+    document.querySelectorAll(".reveal:not(.in)").forEach(el=>io.observe(el));
+
+    // ---------- nav hide on scroll down ----------
+    let lastY=0; const nav=document.getElementById("nav");
+    addEventListener("scroll",()=>{ const y=scrollY; nav.style.transform=(y>lastY&&y>200)?"translateY(-120%)":"translateY(0)"; lastY=y; });
+
+    // ---------- three.js scene: vinyl + particle waveform ----------
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    try {
+      const THREE = await import("three");
+      const { EffectComposer } = await import("three/addons/postprocessing/EffectComposer.js");
+      const { RenderPass } = await import("three/addons/postprocessing/RenderPass.js");
+      const { UnrealBloomPass } = await import("three/addons/postprocessing/UnrealBloomPass.js");
+
+      const host=document.getElementById("scene");
+      const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+      renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+      renderer.setSize(innerWidth,innerHeight);
+      host.appendChild(renderer.domElement);
+
+      const scene=new THREE.Scene();
+      const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,0.1,100);
+      camera.position.set(0,0,9);
+
+      const group=new THREE.Group();
+      // offset the record to the right so it sits behind headline on the left
+      group.position.set(2.4,0.2,0);
+      group.rotation.set(-0.9,0,0.25);
+      scene.add(group);
+
+      // ---- vinyl disc with groove texture ----
+      function grooveTexture(){
+        const c=document.createElement("canvas"); c.width=c.height=1024; const g=c.getContext("2d");
+        g.fillStyle="#0b0709"; g.fillRect(0,0,1024,1024);
+        for(let r=70;r<500;r+=2.4){ g.beginPath(); g.arc(512,512,r,0,Math.PI*2);
+          g.strokeStyle=`rgba(255,255,255,${0.015+Math.random()*0.03})`; g.lineWidth=1; g.stroke(); }
+        return new THREE.CanvasTexture(c);
+      }
+      const disc=new THREE.Mesh(
+        new THREE.CylinderGeometry(3,3,0.08,120),
+        new THREE.MeshStandardMaterial({color:0x0a0708,metalness:0.55,roughness:0.28,map:grooveTexture()})
+      );
+      group.add(disc);
+
+      // ---- gradient center label ----
+      function labelTexture(){
+        const c=document.createElement("canvas"); c.width=c.height=512; const g=c.getContext("2d");
+        const grd=g.createLinearGradient(0,0,512,512);
+        grd.addColorStop(0,"#fc3158"); grd.addColorStop(0.5,"#ff6b5e"); grd.addColorStop(1,"#ff9a4d");
+        g.fillStyle=grd; g.beginPath(); g.arc(256,256,256,0,Math.PI*2); g.fill();
+        g.fillStyle="rgba(0,0,0,0.85)"; g.beginPath(); g.arc(256,256,26,0,Math.PI*2); g.fill();
+        return new THREE.CanvasTexture(c);
+      }
+      const label=new THREE.Mesh(
+        new THREE.CylinderGeometry(1.05,1.05,0.086,64),
+        [ new THREE.MeshStandardMaterial({color:0x120a0d,metalness:0.3,roughness:0.6}),
+          new THREE.MeshStandardMaterial({map:labelTexture(),metalness:0.2,roughness:0.5,emissive:0xff4d6d,emissiveIntensity:0.25,emissiveMap:labelTexture()}),
+          new THREE.MeshStandardMaterial({map:labelTexture(),metalness:0.2,roughness:0.5}) ]
+      );
+      label.position.y=0.004; group.add(label);
+
+      // subtle sheen ring at disc edge
+      const rim=new THREE.Mesh(new THREE.TorusGeometry(3,0.02,16,120),
+        new THREE.MeshStandardMaterial({color:0xff6b5e,emissive:0xff6b5e,emissiveIntensity:0.6,metalness:1,roughness:0.3}));
+      rim.rotation.x=Math.PI/2; group.add(rim);
+
+      // ---- particle waveform ring ----
+      const COUNT = innerWidth<720?900:1700;
+      const pg=new THREE.BufferGeometry();
+      const pos=new Float32Array(COUNT*3), base=new Float32Array(COUNT*3), col=new Float32Array(COUNT*3);
+      const cA=new THREE.Color(0xfc3158), cB=new THREE.Color(0xff9a4d), tmp=new THREE.Color();
+      for(let i=0;i<COUNT;i++){
+        const a=Math.random()*Math.PI*2, rad=3.4+Math.random()*3.0;
+        const x=Math.cos(a)*rad, z=Math.sin(a)*rad, y=(Math.random()-0.5)*0.4;
+        base[i*3]=x; base[i*3+1]=y; base[i*3+2]=z;
+        pos[i*3]=x; pos[i*3+1]=y; pos[i*3+2]=z;
+        tmp.copy(cA).lerp(cB,(rad-3.4)/3.0);
+        col[i*3]=tmp.r; col[i*3+1]=tmp.g; col[i*3+2]=tmp.b;
+      }
+      pg.setAttribute("position",new THREE.BufferAttribute(pos,3));
+      pg.setAttribute("color",new THREE.BufferAttribute(col,3));
+      const particles=new THREE.Points(pg,new THREE.PointsMaterial({size:0.05,vertexColors:true,transparent:true,opacity:0.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+      group.add(particles);
+
+      // ---- lights ----
+      scene.add(new THREE.AmbientLight(0x40222a,1.1));
+      const p1=new THREE.PointLight(0xfc3158,60,40); p1.position.set(-6,4,6); scene.add(p1);
+      const p2=new THREE.PointLight(0xff9a4d,45,40); p2.position.set(7,-3,5); scene.add(p2);
+      const p3=new THREE.PointLight(0xffffff,18,30); p3.position.set(0,8,4); scene.add(p3);
+
+      // ---- post ----
+      const composer=new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene,camera));
+      const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.7,0.55,0.82);
+      composer.addPass(bloom);
+
+      // ---- interaction ----
+      let mx=0,my=0;
+      addEventListener("mousemove",e=>{ mx=(e.clientX/innerWidth-0.5); my=(e.clientY/innerHeight-0.5); });
+      let scrollY0=0; addEventListener("scroll",()=>scrollY0=scrollY);
+
+      addEventListener("resize",()=>{
+        camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth,innerHeight); composer.setSize(innerWidth,innerHeight);
+      });
+
+      const posAttr=pg.getAttribute("position");
+      let t=0, running=true;
+      document.addEventListener("visibilitychange",()=>{running=!document.hidden; if(running) tick();});
+
+      function tick(){
+        if(!running) return;
+        t+=0.006;
+        if(!reduced){
+          group.rotation.z += 0.0016;
+          // waveform: push particles vertically by a travelling sine
+          for(let i=0;i<COUNT;i++){
+            const bx=base[i*3], bz=base[i*3+2];
+            const ang=Math.atan2(bz,bx), r=Math.hypot(bx,bz);
+            posAttr.array[i*3+1]=base[i*3+1]+Math.sin(ang*6+t*3 - r)*0.28;
+          }
+          posAttr.needsUpdate=true;
+          particles.rotation.y = -t*0.15;
+        }
+        // camera parallax
+        camera.position.x += ((mx*1.4) - camera.position.x)*0.04;
+        camera.position.y += ((-my*0.9 + 0.2) - camera.position.y)*0.04;
+        // gentle drift up as you scroll past hero
+        group.position.y = 0.2 + Math.min(scrollY0,700)/700*1.4;
+        camera.lookAt(0.8,0,0);
+        composer.render();
+        requestAnimationFrame(tick);
+      }
+      tick();
+      document.querySelector(".hero-fallback").style.opacity="0.35";
+    } catch(err) {
+      // CDN blocked / WebGL unavailable → CSS fallback already visible
+      console.warn("3D hero unavailable, using fallback:", err);
+    }
+  </script>
+</body>
+</html>

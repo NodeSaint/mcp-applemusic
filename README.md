@@ -1,25 +1,42 @@
-# mcp-applemusic
+<div align="center">
 
-An MCP server that lets Claude control Apple Music on macOS: playback, library search, and full playlist management. Playlist and library changes sync to your iPhone via iCloud Music Library.
+# 🎧 mcp-applemusic
 
-Forked from [kennethreitz/mcp-applemusic](https://github.com/kennethreitz/mcp-applemusic) — credit to Kenneth Reitz for the original experiment. This fork restructures it into a modular package with injection-safe AppleScript execution, persistent-ID track handling, structured JSON results, and a much larger tool surface.
+### Give Claude the keys to your Apple Music.
 
-## Requirements
+Search your library, build playlists, run playback, manage everything — in plain language, straight from any MCP client. Changes sync to your iPhone.
 
-- macOS with the Music app and an Apple Music subscription
-- **Sync Library enabled** (Music → Settings → General → Sync Library) — this is what makes your full cloud library visible and syncs playlist changes to your other devices
-- [uv](https://docs.astral.sh/uv/) installed
-- First tool call may trigger a macOS Automation permission prompt — allow it (System Settings → Privacy & Security → Automation)
+**[Landing page](https://nodesaint.github.io/mcp-applemusic/) · [Install](#install) · [Tools](#the-14-tools) · [Security](#security)**
+
+</div>
+
+---
+
+## What it is
+
+An [MCP](https://modelcontextprotocol.io) server that connects Claude (or any MCP client) to the Music app on your Mac. Ask for *"a rainy-Sunday playlist from my library"* or *"skip this and turn it down"* and it happens — through 14 focused tools over AppleScript.
+
+Anything it changes on your Mac — new playlists, edits, ratings, favorites — propagates to your iPhone and every other device through iCloud Music Library, usually within seconds.
+
+This is a ground-up rework of [kennethreitz/mcp-applemusic](https://github.com/kennethreitz/mcp-applemusic) (credit to Kenneth Reitz for the original experiment). The rewrite adds a modular package, injection-safe AppleScript execution, persistent-ID track handling so nothing matches the wrong song, structured JSON results, and roughly triple the tool surface.
+
+## Quick example
+
+> **You:** Build me a 30-minute focus playlist from stuff I already have, no lyrics.
+>
+> **Claude:** *searches your library by genre, assembles instrumental tracks, creates the playlist* → **"Deep Focus" created with 9 tracks.** It's syncing to your iPhone now.
 
 ## Install
 
-Claude Code:
+**Requirements:** macOS · the Music app · an Apple Music subscription · **Sync Library on** (Music → Settings → General → Sync Library) · [uv](https://docs.astral.sh/uv/).
+
+**Claude Code**
 
 ```bash
 claude mcp add applemusic -- uvx --from git+https://github.com/NodeSaint/mcp-applemusic mcp-applemusic
 ```
 
-Claude Desktop (`claude_desktop_config.json`):
+**Claude Desktop** — add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -32,47 +49,59 @@ Claude Desktop (`claude_desktop_config.json`):
 }
 ```
 
-## Tools
+The first tool call may trigger a macOS **Automation** permission prompt — allow it (System Settings → Privacy & Security → Automation). That's macOS confirming you want this app to control Music.
 
-| Tool | What it does |
+## The 14 tools
+
+**Playback**
+| Tool | Does |
 |---|---|
-| `music_playback` | play / pause / toggle / next / previous |
-| `music_now_playing` | Current track, player state, volume, shuffle, repeat |
-| `music_set_options` | Volume (0–100), shuffle, repeat (off/one/all) |
-| `music_play` | Play a track, a playlist, or an ad-hoc track list (DJ mode via a "Claude Queue" playlist) |
-| `music_search` | Search your library — by all / songs / artists / albums / genre. Returns persistent IDs |
-| `music_track_info` | Full metadata: genre, year, play count, rating, favorited, cloud status |
-| `music_rate` | Star rating (0–5), favorite, dislike |
-| `music_playlists` | List all playlists with IDs and counts |
-| `music_playlist_tracks` | Tracks in a playlist |
-| `music_create_playlist` | Create a playlist, optionally with tracks. Reports any IDs it couldn't add |
-| `music_add_to_playlist` | Add tracks to a playlist |
-| `music_remove_from_playlist` | Remove tracks from a playlist (library untouched) |
-| `music_rename_playlist` | Rename a playlist |
-| `music_delete_playlist` | Delete a playlist (tracks stay in library) |
+| `music_playback` | play · pause · toggle · next · previous |
+| `music_now_playing` | current track, state, volume, shuffle, repeat |
+| `music_set_options` | volume (0–100), shuffle, repeat (off/one/all) |
+| `music_play` | play a track, a playlist, or an ad-hoc track list (DJ mode) |
 
-All track operations use Music.app **persistent IDs** returned by `music_search` — no fragile name matching. Batch operations report `added`/`removed` counts plus a `missing` list; nothing is silently dropped.
+**Library**
+| Tool | Does |
+|---|---|
+| `music_search` | search by all / songs / artists / albums / genre — returns persistent IDs |
+| `music_track_info` | genre, year, play count, rating, favorited, cloud status |
+| `music_rate` | 0–5 stars, favorite, dislike |
 
-## How changes reach your iPhone
+**Playlists**
+| Tool | Does |
+|---|---|
+| `music_playlists` | list every playlist with IDs and counts |
+| `music_playlist_tracks` | tracks inside a playlist |
+| `music_create_playlist` | create, optionally pre-filled — reports any IDs it couldn't add |
+| `music_add_to_playlist` | add tracks |
+| `music_remove_from_playlist` | remove tracks (library untouched) |
+| `music_rename_playlist` | rename |
+| `music_delete_playlist` | delete (tracks stay in your library) |
 
-This server drives Music.app on your Mac. With Sync Library on, playlist creations, edits, deletions, ratings, and favorites propagate to all your devices through iCloud Music Library — usually within seconds. (No API exists that can control playback *on* an iPhone; playback tools affect the Mac.)
+Every track operation uses Music's **persistent IDs** from `music_search` — no fragile name matching, no accidental wrong-song. Batch operations always report an `added`/`removed` count plus a `missing` list; nothing is silently dropped.
 
-## Limitations
+## Security
 
-- macOS only (AppleScript-based)
-- Library content only — searching the full Apple Music catalog and adding songs you don't have yet arrives in Phase 2 (Apple Music Web API; needs an Apple Developer membership)
-- No Up Next queue manipulation (Music.app doesn't expose it to AppleScript); `music_play` with `track_ids` approximates it via a queue playlist
-- Smart playlists can be read but not edited
+The whole server talks to Music through **one** gateway (`runner.py`). Every value you give it — a search term, a playlist name — is passed to `osascript` as a positional argument behind a `--` terminator, **never** concatenated into script source. That makes AppleScript injection structurally impossible: a track named `"; do shell script "rm -rf ~"` is just a string, never code. There is no `eval`, no `shell=True`, no `do shell script` anywhere in the codebase. See [`CHANGELOG.md`](CHANGELOG.md) for the hardening history.
 
-## Development
+It's a local, stdio server with no network surface — it can only reach the Music app on the machine it runs on.
+
+## Roadmap
+
+**Phase 1 — done & live-tested.** Everything above, over AppleScript. Works today, no developer account needed.
+
+**Phase 2 — Apple Music Web API.** Full-catalog search and adding songs you don't own yet, plus native cloud playlists. Needs an Apple Developer membership and a MusicKit key; design is already specced in [`docs/superpowers/`](docs/superpowers/).
+
+## Develop
 
 ```bash
-uv run pytest                          # unit tests (no Music.app needed)
-uv run python scripts/live_smoke.py   # end-to-end against the real Music.app
+uv run pytest                          # 38 unit tests, no Music.app needed
+uv run python scripts/live_smoke.py    # end-to-end against the real Music app
 ```
 
-Design docs live in `docs/superpowers/`. Architecture in short: `runner.py` is the sole `osascript` gateway — every user value is passed as an `argv` argument, never spliced into script source, making AppleScript injection structurally impossible.
+Architecture, conventions, and the hard-won AppleScript gotchas live in [`PRIMER.md`](PRIMER.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Original work © Kenneth Reitz.
+MIT — see [LICENSE](LICENSE). Original work © Kenneth Reitz. This fork © NodeSaint.
