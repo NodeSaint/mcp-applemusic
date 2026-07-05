@@ -11,6 +11,16 @@ Session continuity notes. Update before context is lost.
 - Architecture: `mcp_applemusic/runner.py` is the ONLY osascript caller; values go via argv (`on run argv`), never interpolated. Track identity = persistent IDs. Output = US (`\x1f`) / RS (`\x1e`) delimited records parsed in `models.py`.
 - Spec: `docs/superpowers/specs/2026-07-05-hybrid-apple-music-mcp-design.md`. Plan (with critique log): `docs/superpowers/plans/2026-07-05-phase1-applescript-deep.md`.
 
+## Distribution (prepped, awaiting user action)
+
+- Renamed distributable to **`mcp-applemusic-nodesaint`** (upstream owns `mcp-applemusic` on PyPI). Console script renamed to match. `server.json` (registry manifest, `io.github.nodesaint/mcp-applemusic`) + `<!-- mcp-name -->` marker in README are in place. Full steps in `PUBLISHING.md`.
+- **User must run** (needs their accounts, can't be automated): (1) `uv build && uv publish` to PyPI; (2) `mcp-publisher login github && mcp-publisher publish`. Until then the tool installs only from git.
+- On each release, bump version in BOTH `pyproject.toml` and `server.json` (name + packages[0].version), or the registry rejects it.
+
+## Taste layer (design scoped, not built)
+
+- The strategic moat. Design: `docs/superpowers/specs/2026-07-05-taste-layer-design.md`. LLM does semantics (brief→intent), an engine does grounding + sequencing (flow). Verified live: Music.app exposes behavioural signal (play/skip count, rating, favorited) but **BPM returns 0 for cloud tracks and ISRC is NOT exposed** — so acoustic enrichment (Tier 1) needs fuzzy title+artist matching or Phase 2's Apple API for ISRC. v1 (taste profile + genre/behaviour sequencing) ships with no new API.
+
 ## Hard-won AppleScript gotchas (do not rediscover)
 
 - Variable names `st` (stone unit) and `removed` (Music dictionary constant) are RESERVED — cause syntax/runtime errors inside `tell application "Music"` blocks. Verified `m, q, t, d, p, n, v, r, us, rs` are safe.
