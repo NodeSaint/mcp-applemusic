@@ -17,8 +17,22 @@ def test_args_passed_as_argv_not_interpolated():
         run_script("on run argv\nreturn item 1 of argv\nend run", 'evil " quote', "two")
     cmd = run.call_args[0][0]
     assert cmd[:2] == ["osascript", "-e"]
-    assert cmd[3:] == ['evil " quote', "two"]  # data, not source
+    assert cmd[3] == "--"  # option terminator precedes all user args
+    assert cmd[4:] == ['evil " quote', "two"]  # data, not source
     assert "evil" not in cmd[2]
+
+
+def test_arg_starting_with_dash_is_terminated_not_parsed_as_flag():
+    # Regression: a value like "-e <script>" must never be seen by osascript
+    # as an option. The "--" terminator guarantees it lands in argv as data.
+    with patch("mcp_applemusic.runner.subprocess.run", return_value=_completed(stdout="ok\n")) as run:
+        run_script("s", "-e", 'return "PWNED"', "-s")
+    cmd = run.call_args[0][0]
+    assert "--" in cmd
+    dash_dash = cmd.index("--")
+    # everything after "--" is user data; the "-e"/"-s" appear only there
+    assert cmd[dash_dash + 1:] == ["-e", 'return "PWNED"', "-s"]
+    assert "-e" not in cmd[:dash_dash + 1][3:]  # no stray flag before the args
 
 
 def test_output_stripped_of_trailing_newline():

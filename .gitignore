@@ -1,4 +1,18 @@
+# Python
 mcp_applemusic.egg-info
+*.pyc
+__pycache__/
+.venv/
+dist/
+build/
+
+# Editors
 .vscode
 
-*.pyc
+# Secrets — Phase 2 (Apple Music API). NEVER commit these.
+.env
+.env.*
+*.p8
+config.json
+.config/
+secrets/

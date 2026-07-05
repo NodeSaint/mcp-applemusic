@@ -20,7 +20,11 @@ class AppleScriptError(Exception):
 
 
 def run_script(script: str, *args: str) -> str:
-    cmd = ["osascript", "-e", script, *[str(a) for a in args]]
+    # The "--" terminator forces osascript to treat every following value as a
+    # positional argv item. Without it, any user value beginning with "-"
+    # (e.g. "-e <script>") is parsed as an osascript option — an injection
+    # vector that can smuggle a second script and reach `do shell script`.
+    cmd = ["osascript", "-e", script, "--", *[str(a) for a in args]]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     except subprocess.TimeoutExpired:
