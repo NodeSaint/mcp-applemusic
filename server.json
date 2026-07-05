@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.nodesaint/mcp-applemusic",
+  "title": "Apple Music",
+  "description": "Give Claude control of Apple Music on macOS: search your library, build playlists, run playback. Persistent-ID based, injection-safe, syncs to iPhone.",
+  "repository": {
+    "url": "https://github.com/NodeSaint/mcp-applemusic",
+    "source": "github"
+  },
+  "version": "0.2.3",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "mcp-applemusic-nodesaint",
+      "version": "0.2.3",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MUSIC_MCP_READONLY",
+          "description": "Set to 1 to run read-only: every state-changing tool (playback, create/add/remove/rename/delete playlist, rate) is disabled; search and browse still work.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

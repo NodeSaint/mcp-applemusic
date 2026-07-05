@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — distribution
+
+- Prepared for PyPI + the official MCP Registry. Renamed the distributable to `mcp-applemusic-nodesaint` (upstream owns `mcp-applemusic` on PyPI); console script renamed to match so `uvx mcp-applemusic-nodesaint` works. Added PyPI metadata (license, keywords, classifiers, URLs).
+- Added `server.json` (registry manifest, `io.github.nodesaint/mcp-applemusic`) and the `<!-- mcp-name: … -->` ownership marker in the README.
+- Added `PUBLISHING.md` with the exact PyPI + `mcp-publisher` steps.
+- Set the GitHub repo description and MCP discovery topics so directories (Glama, PulseMCP, mcp.so) can index it.
+- README install commands updated to the PyPI package.
+
 ## 0.2.3 — 2026-07-05 — safe-by-choice controls
 
 OWASP Top 10 pass. Most items are N/A (no network, DB, auth, or web input in the server); the two that apply:

@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.nodesaint/mcp-applemusic -->
+
 <div align="center">
 
 # 🎧 mcp-applemusic
@@ -33,7 +35,7 @@ This is a ground-up rework of [kennethreitz/mcp-applemusic](https://github.com/k
 **Claude Code**
 
 ```bash
-claude mcp add applemusic -- uvx --from git+https://github.com/NodeSaint/mcp-applemusic mcp-applemusic
+claude mcp add applemusic -- uvx mcp-applemusic-nodesaint
 ```
 
 **Claude Desktop** — add to `claude_desktop_config.json`:
@@ -43,11 +45,13 @@ claude mcp add applemusic -- uvx --from git+https://github.com/NodeSaint/mcp-app
   "mcpServers": {
     "applemusic": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/NodeSaint/mcp-applemusic", "mcp-applemusic"]
+      "args": ["mcp-applemusic-nodesaint"]
     }
   }
 }
 ```
+
+<sub>Bleeding edge instead of the released package? Swap `mcp-applemusic-nodesaint` for `--from git+https://github.com/NodeSaint/mcp-applemusic mcp-applemusic-nodesaint`.</sub>
 
 The first tool call may trigger a macOS **Automation** permission prompt — allow it (System Settings → Privacy & Security → Automation). That's macOS confirming you want this app to control Music.
 
@@ -92,7 +96,7 @@ It's a local, stdio server with no network surface — it can only reach the Mus
 ```json
 "applemusic": {
   "command": "uvx",
-  "args": ["--from", "git+https://github.com/NodeSaint/mcp-applemusic", "mcp-applemusic"],
+  "args": ["mcp-applemusic-nodesaint"],
   "env": { "MUSIC_MCP_READONLY": "1" }
 }
 ```
