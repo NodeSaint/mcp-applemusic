@@ -1,97 +1,78 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/kennethreitz-mcp-applemusic-badge.png)](https://mseep.ai/app/kennethreitz-mcp-applemusic)
+# mcp-applemusic
 
-# MCP-AppleMusic
+An MCP server that lets Claude control Apple Music on macOS: playback, library search, and full playlist management. Playlist and library changes sync to your iPhone via iCloud Music Library.
 
-A FastMCP server implementation for controlling Apple Music (formerly iTunes) on macOS through AppleScript commands.
+Forked from [kennethreitz/mcp-applemusic](https://github.com/kennethreitz/mcp-applemusic) — credit to Kenneth Reitz for the original experiment. This fork restructures it into a modular package with injection-safe AppleScript execution, persistent-ID track handling, structured JSON results, and a much larger tool surface.
 
 ## Requirements
 
-- Python 3.13+
-- macOS with Apple Music app installed
-- MCP library ≥1.2.1
+- macOS with the Music app and an Apple Music subscription
+- **Sync Library enabled** (Music → Settings → General → Sync Library) — this is what makes your full cloud library visible and syncs playlist changes to your other devices
+- [uv](https://docs.astral.sh/uv/) installed
+- First tool call may trigger a macOS Automation permission prompt — allow it (System Settings → Privacy & Security → Automation)
 
-## Installation
+## Install
 
-First, ensure you have uv installed:
+Claude Code:
+
 ```bash
-$ brew install uv
+claude mcp add applemusic -- uvx --from git+https://github.com/NodeSaint/mcp-applemusic mcp-applemusic
 ```
 
-Then, with **Claude Desktop**, add the following to `claude_desktop_config.json`:
+Claude Desktop (`claude_desktop_config.json`):
 
 ```json
 {
   "mcpServers": {
-    "iTunesControlServer": {
+    "applemusic": {
       "command": "uvx",
-      "args": ["-p", "3.13", "-n", "mcp-applemusic"]
+      "args": ["--from", "git+https://github.com/NodeSaint/mcp-applemusic", "mcp-applemusic"]
     }
   }
 }
 ```
 
-## Available Commands
+## Tools
 
-The following commands are available through the MCP server:
+| Tool | What it does |
+|---|---|
+| `music_playback` | play / pause / toggle / next / previous |
+| `music_now_playing` | Current track, player state, volume, shuffle, repeat |
+| `music_set_options` | Volume (0–100), shuffle, repeat (off/one/all) |
+| `music_play` | Play a track, a playlist, or an ad-hoc track list (DJ mode via a "Claude Queue" playlist) |
+| `music_search` | Search your library — by all / songs / artists / albums / genre. Returns persistent IDs |
+| `music_track_info` | Full metadata: genre, year, play count, rating, favorited, cloud status |
+| `music_rate` | Star rating (0–5), favorite, dislike |
+| `music_playlists` | List all playlists with IDs and counts |
+| `music_playlist_tracks` | Tracks in a playlist |
+| `music_create_playlist` | Create a playlist, optionally with tracks. Reports any IDs it couldn't add |
+| `music_add_to_playlist` | Add tracks to a playlist |
+| `music_remove_from_playlist` | Remove tracks from a playlist (library untouched) |
+| `music_rename_playlist` | Rename a playlist |
+| `music_delete_playlist` | Delete a playlist (tracks stay in library) |
 
-```python
-itunes_play()         # Start playback
-itunes_pause()        # Pause playback
-itunes_next()         # Skip to next track
-itunes_previous()     # Go to previous track
-itunes_search(query)  # Search library for tracks
-itunes_play_song(song)  # Play specific song
-itunes_create_playlist(name, songs)  # Create new playlist
-itunes_library()      # Get library statistics
-```
+All track operations use Music.app **persistent IDs** returned by `music_search` — no fragile name matching. Batch operations report `added`/`removed` counts plus a `missing` list; nothing is silently dropped.
 
-## Usage
+## How changes reach your iPhone
 
-Start the server:
+This server drives Music.app on your Mac. With Sync Library on, playlist creations, edits, deletions, ratings, and favorites propagate to all your devices through iCloud Music Library — usually within seconds. (No API exists that can control playback *on* an iPhone; playback tools affect the Mac.)
 
-```bash
-python server.py
-```
+## Limitations
 
-Example interactions:
-
-```python
-# Search for a song
-results = itunes_search("Hey Jude")
-
-# Create a new playlist
-itunes_create_playlist("Beatles Favorites", ["Yesterday", "Hey Jude", "Let It Be"])
-
-# Play a specific song
-itunes_play_song("Hey Jude")
-```
+- macOS only (AppleScript-based)
+- Library content only — searching the full Apple Music catalog and adding songs you don't have yet arrives in Phase 2 (Apple Music Web API; needs an Apple Developer membership)
+- No Up Next queue manipulation (Music.app doesn't expose it to AppleScript); `music_play` with `track_ids` approximates it via a queue playlist
+- Smart playlists can be read but not edited
 
 ## Development
 
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/mcp-applemusic.git
-cd mcp-applemusic
+uv run pytest                          # unit tests (no Music.app needed)
+uv run python scripts/live_smoke.py   # end-to-end against the real Music.app
 ```
 
-2. Install development dependencies:
-```bash
-pip install -e ".[dev]"
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Design docs live in `docs/superpowers/`. Architecture in short: `runner.py` is the sole `osascript` gateway — every user value is passed as an `argv` argument, never spliced into script source, making AppleScript injection structurally impossible.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Notes
-
-- This tool only works on macOS systems due to its AppleScript dependency
-- Requires Apple Music (formerly iTunes) to be installed
+MIT — see [LICENSE](LICENSE). Original work © Kenneth Reitz.
